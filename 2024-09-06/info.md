@@ -1,1 +1,1 @@
-* When jitting the forward function, pytorch is 'only' around times faster than R torch.
+* When jitting the forward function, pytorch is 'only' around 3 times faster than R torch.
