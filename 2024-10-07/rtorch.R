@@ -22,17 +22,18 @@ config_tbl = if (test) {
 } else {
   list(
     # data
-    n          = 10000,
-    p          = c(100, 500, 1000),
+    n          = 2000,
+    p          = c(100, 250, 500),
     # training parameters
-    epochs     = 100,
+    epochs     = 20,
     batch_size = c(16, 128, 256),
     device     = c("cpu", "cuda"),
     # jit compilation
     jit        = c(TRUE, FALSE),
     # network
-    latent     = c(1000, 2500, 5000),
-    n_layers   = c(1, 3, 5)
+    latent     = c(100, 500, 1000),
+    n_layers   = c(1, 5, 10),
+    init_max_memory = c(TRUE)
   ) |> expand.grid()
 }
 
@@ -61,6 +62,13 @@ time = function(config) {
   }
 
   library(torch)
+  if (config$init_max_memory) {
+    # 11019 MiB
+    x = torch_ones(10000 * 1024^2 / 4, device = config$device)
+    x[1]
+    rm(x)
+    gc()
+  }
   ## convert the three lines below into R code, i.e. with rnorm and matrix multiplication
   X = torch_randn(config$n, config$p, device = config$device)
   beta = torch_randn(config$p, 1, device = config$device)
@@ -72,7 +80,7 @@ time = function(config) {
   }
 
   if (config$jit) {
-    net = jit_trace_module(net, forward = list(X[1, , drop = FALSE]))
+    net = jit_trace_module(net, forward = list(X[1:config$batch_size, , drop = FALSE]))
   }
 
   opt = optim_adam(net$parameters)
@@ -89,22 +97,32 @@ time = function(config) {
   t0 = Sys.time()
   for (epoch in seq(1, config$epochs)) {
     for (step in seq_len(steps)) {
+      opt$zero_grad()
       batch = get_batch(step, X, Y, config$batch_size)
       y_hat = net(batch$x)
       loss = nnf_mse_loss(y_hat, batch$y)
       loss$backward()
       opt$step()
     }
-  } 
+  }
   t1 = Sys.time()
 
-  return(t1 - t0)
+  list(
+    time = difftime(t1, t0, units = "secs"),
+    loss = loss$item()
+  )
 }
 
 timings = map_dbl(configs, function(config) {
-  callr::r(time, args = list(config = config))
+  x = try(callr::r(time, args = list(config = config)))
+  if (inherits(x, "try-error")) {
+    print("error")
+    return(NA)
+  }
+  print(x$loss)
+  x$time
 }, .progress = TRUE)
 
 config_tbl$time = timings
 
-write.csv(config_tbl, here("2024-10-07", "rtorch.csv"))
+write.csv(config_tbl, here("2024-10-07", "rtorch3.csv"))

@@ -25,14 +25,14 @@ if test:
     }
 else:
     config_grid = {
-        'n': [10000],
-        'p': [100, 500, 1000],
-        'epochs': [100],
+        'n': [2000],
+        'p': [100, 250, 500],
+        'epochs': [20],
         'batch_size': [16, 128, 256],
         'device': ['cpu', 'cuda'],
         'jit': [True, False],
-        'latent': [1000, 2500, 5000],
-        'n_layers': [1, 3, 5]
+        'latent': [100, 500, 1000],
+        'n_layers': [1, 5, 10]
     }
 
 # Create all combinations of configurations
@@ -93,14 +93,15 @@ def time_config(config):
     
     # Calculate elapsed time
     elapsed = end_time - start_time
-    return elapsed
+    return elapsed, loss.item()
 
 # 4. Iterate over all configurations and record timings
 timings = []
 for idx, config in enumerate(configs, 1):
     print(f"Running configuration {idx}/{len(configs)}: {config}")
-    elapsed_time = time_config(config)
+    elapsed_time, loss = time_config(config)
     print(f"Time taken: {elapsed_time:.2f} seconds\n")
+    print(f"Loss: {loss:.2f}\n")
     timings.append(elapsed_time)
 
 # 5. Add timings to the configurations
@@ -113,14 +114,10 @@ df = pd.DataFrame(configs)
 # 7. Save the results to a file
 output_dir = Path("2024-10-07")
 output_dir.mkdir(parents=True, exist_ok=True)
-output_path = output_dir / "ptorch.pkl"
+output_path = output_dir / "pytorch2.csv"
 
 # write to csv instead of pickle 
 
 df.to_csv(output_path, index=False)
 
 print(f"Saved timings to {output_path}")
-
-# Optional: To load the data later, you can use:
-# with open(output_path, 'rb') as f:
-#     loaded_df = pickle.load(f)

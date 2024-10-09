@@ -4,7 +4,7 @@ import time
 import torch.nn.functional as F
 
 p = 100
-steps = 3000
+steps = 1000
 
 n = 1000
 
@@ -24,7 +24,7 @@ net.cuda()
 
 net.compile()
 
-opt = torch.optim.SGD(net.parameters(), lr = 0.1)
+opt = torch.optim.Adam(net.parameters())
 
 t1 = time.time()
 for i in range(steps):
