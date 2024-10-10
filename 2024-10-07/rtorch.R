@@ -23,17 +23,18 @@ config_tbl = if (test) {
   list(
     # data
     n          = 2000,
-    p          = c(100, 250, 500),
+    p          = 500,
+    optimizer = c("adam", "sgd"),
     # training parameters
-    epochs     = 20,
-    batch_size = c(16, 128, 256),
+    epochs     = c(20, 40),
+    batch_size = c(16, 256, 512),
     device     = c("cpu", "cuda"),
     # jit compilation
     jit        = c(TRUE, FALSE),
     # network
-    latent     = c(100, 500, 1000),
-    n_layers   = c(1, 5, 10),
-    init_max_memory = c(TRUE)
+    latent     = c(100, 1000),
+    n_layers   = c(1, 10, 20),
+    init_max_memory = c(FALSE)
   ) |> expand.grid()
 }
 
@@ -83,7 +84,7 @@ time = function(config) {
     net = jit_trace_module(net, forward = list(X[1:config$batch_size, , drop = FALSE]))
   }
 
-  opt = optim_adam(net$parameters)
+  opt = if (config$optimizer == "adam") optim_adam(net$parameters) else optim_sgd(net$parameters, lr = 0.001)
 
 
   get_batch = function(step, X, Y, batch_size) {
@@ -125,4 +126,4 @@ timings = map_dbl(configs, function(config) {
 
 config_tbl$time = timings
 
-write.csv(config_tbl, here("2024-10-07", "rtorch3.csv"))
+write.csv(config_tbl, here("2024-10-07", "rtorch5.csv"))

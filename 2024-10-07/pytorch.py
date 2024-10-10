@@ -4,7 +4,7 @@ import time
 import os
 import pickle
 from torch import nn
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, TensorDataset
 from pathlib import Path
 import pandas as pd
@@ -26,13 +26,14 @@ if test:
 else:
     config_grid = {
         'n': [2000],
-        'p': [100, 250, 500],
-        'epochs': [20],
-        'batch_size': [16, 128, 256],
+        'p': [500],
+        'optimizer': ['adam', 'sgd'],
+        'epochs': [20, 40],
+        'batch_size': [16, 256, 512],
         'device': ['cpu', 'cuda'],
         'jit': [True, False],
-        'latent': [100, 500, 1000],
-        'n_layers': [1, 5, 10]
+        'latent': [100, 1000],
+        'n_layers': [1, 10, 20]
     }
 
 # Create all combinations of configurations
@@ -69,7 +70,11 @@ def time_config(config):
     
     
     # Define optimizer and loss function
-    optimizer = Adam(net.parameters())
+    if config['optimizer'] == 'adam':
+        optimizer = Adam(net.parameters())
+    else:
+        optimizer = SGD(net.parameters(), lr = 0.001)
+
     loss_fn = nn.MSELoss()
     
     # Create DataLoader for batching
@@ -112,11 +117,7 @@ for config, timing in zip(configs, timings):
 df = pd.DataFrame(configs)
 
 # 7. Save the results to a file
-output_dir = Path("2024-10-07")
-output_dir.mkdir(parents=True, exist_ok=True)
-output_path = output_dir / "pytorch2.csv"
-
-# write to csv instead of pickle 
+output_path = "pytorch5.csv"
 
 df.to_csv(output_path, index=False)
 
