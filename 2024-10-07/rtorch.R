@@ -1,6 +1,7 @@
 library(torch)
 library(here)
 library(purrr)
+library(data.table)
 
 test = FALSE
 
@@ -23,17 +24,17 @@ config_tbl = if (test) {
   list(
     # data
     n          = 2000,
-    p          = 500,
+    p          = 1000,
     optimizer = c("adam", "sgd"),
     # training parameters
-    epochs     = c(20, 40),
-    batch_size = c(16, 256, 512),
-    device     = c("cpu", "cuda"),
+    epochs     = 10,
+    batch_size = c(1024, 128, 16),
+    device     = c("cuda"),
     # jit compilation
     jit        = c(TRUE, FALSE),
     # network
-    latent     = c(100, 1000),
-    n_layers   = c(1, 10, 20),
+    latent     = c(2000, 1000, 500),
+    n_layers   = c(16, 4, 1),
     init_max_memory = c(FALSE)
   ) |> expand.grid()
 }
@@ -52,6 +53,7 @@ configs = mlr3misc::map(1:nrow(config_tbl), function(i) {
 # I think it is important that we run this in a new R session each time because otherwise
 # The cuda memory will depend on other experiments 
 time = function(config) {
+  # set cuda seed 
   make_network = function(p, latent, n_layers) {
     layers = list(nn_linear(p, latent), nn_relu())
     for (i in seq_len(n_layers - 1)) {
@@ -70,6 +72,7 @@ time = function(config) {
     rm(x)
     gc()
   }
+  torch_manual_seed(123)
   ## convert the three lines below into R code, i.e. with rnorm and matrix multiplication
   X = torch_randn(config$n, config$p, device = config$device)
   beta = torch_randn(config$p, 1, device = config$device)
@@ -94,8 +97,8 @@ time = function(config) {
     )
   }
 
-
   t0 = Sys.time()
+  timings = list()
   for (epoch in seq(1, config$epochs)) {
     for (step in seq_len(steps)) {
       opt$zero_grad()
@@ -104,26 +107,34 @@ time = function(config) {
       loss = nnf_mse_loss(y_hat, batch$y)
       loss$backward()
       opt$step()
-    }
+   }
+    timings = append(timings, list(as.numeric(difftime(Sys.time(), t0, units = "secs"))))
   }
-  t1 = Sys.time()
 
   list(
-    time = difftime(t1, t0, units = "secs"),
+    timings = timings,
     loss = loss$item()
   )
 }
 
-timings = map_dbl(configs, function(config) {
+results = map(configs, function(config) {
   x = try(callr::r(time, args = list(config = config)))
   if (inherits(x, "try-error")) {
     print("error")
     return(NA)
   }
   print(x$loss)
-  x$time
+  x
 }, .progress = TRUE)
 
-config_tbl$time = timings
+timings = rbindlist(map(results, function(x) as.data.table(x$timings)))
+losses = map_dbl(results, function(x) x$loss)
 
-write.csv(config_tbl, here("2024-10-07", "rtorch5.csv"))
+browser()
+
+config_tbl = cbind(config_tbl, timings)
+config_tbl$loss = losses
+
+name = paste0("result", Sys.getenv("CUDA_VISIBLE_DEVICES"), ".csv")
+
+write.csv(config_tbl, here("2024-10-07", "R", name))
