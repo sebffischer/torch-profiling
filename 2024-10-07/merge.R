@@ -10,47 +10,36 @@ r3 = read.csv(here("2024-10-07/R/result3.csv"))
 
 r = r0
 
-for (i in paste0("V", 1:10)) {
-  r[[i]] = (r0[[i]] + r1[[i]] + r2[[i]] + r3[[i]]) / 4
-}
+r0$time = rowMeans(r0[, paste0("V", 6:10)])
+r1$time = rowMeans(r1[, paste0("V", 6:10)])
+r2$time = rowMeans(r2[, paste0("V", 6:10)])
+r3$time = rowMeans(r3[, paste0("V", 6:10)])
 
 r$loss = (r0$loss + r1$loss + r2$loss + r3$loss) / 4
+r$time = (r0$time + r1$time + r2$time + r3$time) / 4
+r$time_se = sqrt(((r0$time - r$time)^2 + (r1$time - r$time)^2 + (r2$time - r$time)^2 + (r3$time - r$time)^2) / 3) / sqrt(4)
 
 setDT(r)
 r$X = NULL
-setnames(r, paste0("V", 1:10), paste0("epoch_", 1:10))
 r = r[init_max_memory == FALSE, ]
 r$init_max_memory = NULL
 r$backend = "R"
 # calculate differences between epochs, epoch_2 - epoch_1, epoch_3 - epoch_2, etc.
-r$epoch_diff_1 = r$epoch_1
-for (i in 2:10) {
-  r[[paste0("epoch_diff_", i)]] = r[[paste0("epoch_", i)]] - r[[paste0("epoch_", i - 1)]]
-}
-# remove epoch_1 to epoch_10
-r[, paste0("epoch_", 1:10) := NULL]
-setnames(r, paste0("epoch_diff_", 1:10), paste0("epoch_", 1:10))
-r$time = rowMeans(r[, paste0("epoch_", 6:10)])
-r[, paste0("epoch_", 1:10) := NULL]
-# average epochs 6 to 10
 
-py = read.csv(here("2024-10-07/python/result2.csv"))
-
-
-#py0 = read.csv(here("2024-10-07/python/result0.csv"))
+py0 = read.csv(here("2024-10-07/python/result0.csv"))
 py1 = read.csv(here("2024-10-07/python/result1.csv"))
 py2 = read.csv(here("2024-10-07/python/result2.csv"))
 py2 = py2[py2$device == "cuda", ]
 py3 = read.csv(here("2024-10-07/python/result3.csv"))
 py3 = py3[py3$device == "cuda", ]
 
-py = py1
+py = py0
 
 for (i in paste0("epoch_", 1:10)) {
-  py[[i]] = (py1[[i]] + py2[[i]] + py3[[i]]) / 3
+  py[[i]] = (py0[[i]], py1[[i]] + py2[[i]] + py3[[i]]) / 4
 }
 
-py$loss = (py1$loss + py2$loss + py3$loss) / 3
+py$loss = (py0$loss +py1$loss + py2$loss + py3$loss) / 4
 
 py$jit = as.logical(py$jit)
 setDT(py)
@@ -87,7 +76,9 @@ head
 # Reshape dt from long to wide. I want one time column for backend R and one for backend Python
 dt = dcast(dt, ... ~ backend, value.var = c("time", "loss"))
 
-dt$n_batches = ceiling(dt$n / dt$batch_size) * dt$n
+dt$epochs = 5
+
+dt$n_batches = ceiling(dt$n / dt$batch_size) * dt$epochs
 
 write.csv(dt, here("2024-10-07/analysis7.csv"), row.names = FALSE)
 
