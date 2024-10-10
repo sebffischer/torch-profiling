@@ -1,29 +1,44 @@
 library(data.table)
+library(ggplot2)
 library(here)
 
-r = read.csv(here("2024-10-07/rtorch5.csv"))
-r$X = NULL
-setDT(r)
-r$init_max_memory = NULL
-r$backend = "R"
+dt = fread(here("2024-10-07/analysis5.csv"))
 
-py = read.csv(here("2024-10-07/pytorch5.csv"))
-py$jit = as.logical(py$jit)
-setDT(py)
-py$backend = "Python"
+tmp = dcast(dt[, -c("n_batches")], ... ~ epochs ,value.var = c("R", "Python"))
+setnames(tmp, c("20", "40"), c("time_20", "time_40"))
+tmp$Python_ratio = tmp$Python_40 / tmp$Python_20
+tmp$R_ratio = tmp$R_40 / tmp$R_20
 
-# order the columns the same way
-setcolorder(py, colnames(r))
+# For python the ratio between 40 and 20 epochs is 2, for R it is < 2
+# Especially jitting becomes better with 40 epochs
+tmp[, list(py = mean(Python_ratio), R = mean(R_ratio)), by = "jit"]
 
-# combine the data.tables
-dt = rbind(r, py)
+# -> Use 40 epochs now
 
-# Reshape dt from long to wide. I want one time column for backend R and one for backend Python
-dt = dcast(dt, ... ~ backend, value.var = "time")
+dt = dt[epochs == 40, ]
 
-dt$n_batches = ceiling(dt$n / dt$batch_size) * dt$epochs
+# Effect of jitting?
+# In python: no, in R it makes it slower
+dt[, list(py = mean(Python), r = mean(R)), by = "jit"]
 
-write.csv(dt, here("2024-10-07/analysis5.csv"), row.names = FALSE)
+dt$ratio = dt$Python / dt$R
 
+ggplot(dt[device == "cuda" & p == 500 & latent == 1000, ], aes(x = as.factor(n_layers), y = ratio, color = optimizer)) +
+  geom_point() + 
+  facet_grid(vars(jit), vars(batch_size)) + 
+  labs(
+    x = "Number of Layers",
+    color = "JIT",
+    title = "X-facet is Batch Size, Y-facet is jit, device is 'cuda', latent dim is 1000",
+    y = "Ratio Runtime Pytorch / Rtorch"
+  ) 
 
+# What about the time per batch
 
+dtlong = melt(dt, measure.vars = c("Python", "R"), value.name = "time", variable.name = "language")
+
+dtlong$time_per_batch = dtlong$time / dtlong$n_batches
+
+ggplot(dtlong[p == 500 & latent == 1000 & !jit & device == "cuda", ], aes(x = as.factor(batch_size), y = time_per_batch, color = language)) + 
+  facet_grid(vars(n_layers), vars(optimizer), scales = "free_y") +
+  geom_boxplot()

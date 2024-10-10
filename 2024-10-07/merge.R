@@ -1,7 +1,21 @@
 library(data.table)
 library(here)
 
-r = read.csv(here("2024-10-07/R/result1.csv"))
+# There are result1 result2, result3 and result0
+# add 
+r0 = read.csv(here("2024-10-07/R/result0.csv"))
+r1 = read.csv(here("2024-10-07/R/result1.csv"))
+r2 = read.csv(here("2024-10-07/R/result2.csv"))
+r3 = read.csv(here("2024-10-07/R/result3.csv"))
+
+r = r0
+
+for (i in paste0("V", 1:10)) {
+  r[[i]] = (r0[[i]] + r1[[i]] + r2[[i]] + r3[[i]]) / 4
+}
+
+r$loss = (r0$loss + r1$loss + r2$loss + r3$loss) / 4
+
 setDT(r)
 r$X = NULL
 setnames(r, paste0("V", 1:10), paste0("epoch_", 1:10))
@@ -21,6 +35,23 @@ r[, paste0("epoch_", 1:10) := NULL]
 # average epochs 6 to 10
 
 py = read.csv(here("2024-10-07/python/result2.csv"))
+
+
+#py0 = read.csv(here("2024-10-07/python/result0.csv"))
+py1 = read.csv(here("2024-10-07/python/result1.csv"))
+py2 = read.csv(here("2024-10-07/python/result2.csv"))
+py2 = py2[py2$device == "cuda", ]
+py3 = read.csv(here("2024-10-07/python/result3.csv"))
+py3 = py3[py3$device == "cuda", ]
+
+py = py1
+
+for (i in paste0("epoch_", 1:10)) {
+  py[[i]] = (py1[[i]] + py2[[i]] + py3[[i]]) / 3
+}
+
+py$loss = (py1$loss + py2$loss + py3$loss) / 3
+
 py$jit = as.logical(py$jit)
 setDT(py)
 py = py[py$device == "cuda", ]
