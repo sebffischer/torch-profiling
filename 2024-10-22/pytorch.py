@@ -28,13 +28,13 @@ else:
     config_grid = {
         'n': [2000],
         'p': [1000],
-        'optimizer': ['sgd'],
-        'epochs': [3],
+        'optimizer': ['sgd', 'adam'],
+        'epochs': [20],
         'batch_size': [32],
-        'device': ['cpu'],
+        'device': ['cpu', 'cuda'],
         'jit': [False],
         'latent': [1000],
-        'n_layers': [20]
+        'n_layers': [2, 4, 8, 16, 32]
     }
 
 # Create all combinations of configurations
@@ -99,6 +99,7 @@ def time_config(config):
     
     # Training loop
     for epoch in range(1, config['epochs'] + 1):
+        start_time = time.time()
         for step in range(1, steps + 1):
             batch = get_batch(step, X, Y, config['batch_size'])
             optimizer.zero_grad()
@@ -139,25 +140,25 @@ print(timings)
 
 # each element of timings is a list of timings for each epoch
 # convert them to a data.frame where timings[0] is the first row
-#timings = pd.DataFrame(timings, columns=[f"epoch_{i}" for i in range(1, 11)])
+timings = pd.DataFrame(timings, columns=[f"epoch_{i}" for i in range(1, 21)])
 
 
-#for config, loss in zip(configs, losses):
-#    config['loss'] = loss
+for config, loss in zip(configs, losses):
+    config['loss'] = loss
 
 # 6. Convert to pandas DataFrame for easier handling
-#df = pd.DataFrame(configs)
+df = pd.DataFrame(configs)
 
-#df = pd.concat([df, timings], axis=1)
+df = pd.concat([df, timings], axis=1)
 
-#name = f"result{os.getenv('CUDA_VISIBLE_DEVICES')}.csv"
+name = f"result{os.getenv('CUDA_VISIBLE_DEVICES')}.csv"
 
 # 7. Save the results to a file
 # use projroot library to set it to ./2024-10-07/python/name.csv
-#from pyprojroot.here import here
+from pyprojroot.here import here
 
-#output_path = str(here('2024-10-07/python/' + name))
+output_path = str(here('2024-10-22/python/' + name))
 
-#df.to_csv(output_path, index=False)
+df.to_csv(output_path, index=False)
 
-#print(f"Saved timings to {output_path}")
+print(f"Saved timings to {output_path}")

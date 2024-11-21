@@ -2,6 +2,7 @@ library(torch)
 library(here)
 library(purrr)
 library(data.table)
+library(ignite)
 
 test = FALSE
 
@@ -25,16 +26,18 @@ config_tbl = if (test) {
     # data
     n          = 2000,
     p          = 1000,
-    optimizer = c("sgd"),
+    optimizer = c("sgd", "adam"),
     # training parameters
-    epochs     = 3,
+    epochs     = 20,
     batch_size = c(32),
-    device     = c("cpu"),
+    device     = c("cpu", "cuda"),
+    type       = c("base", "torchoptx", "ignite"),
+    ignite     = c(TRUE, FALSE),
     # jit compilation
     jit        = c(FALSE),
     # network
     latent     = c(1000),
-    n_layers   = c(20),
+    n_layers   = c(2, 4, 8, 16, 32),
     init_max_memory = c(FALSE)
   ) |> expand.grid()
 }
@@ -87,8 +90,15 @@ time = function(config) {
     net = jit_trace_module(net, forward = list(X[1:config$batch_size, , drop = FALSE]))
   }
 
-  opt = if (config$optimizer == "adam") optim_adam(net$parameters) else optim_sgd(net$parameters, lr = 0.001)
+  opt = if (config
 
+  opt = if (config$torchoptx) torchoptx::optim_adam(net$parameters) else torch::optim_adam(net$parameters)
+
+  opt = if (config$optimizer == "adam") {
+    if (config$torchoptx) torchoptx::optim_adam(net$parameters) else torch::optim_adam(net$parameters)
+  } else {
+    if (config$torchoptx) torchoptx::optim_sgd(net$parameters, lr = 0.001) else torch::optim_sgd(net$parameters, lr = 0.001)
+  }
 
   get_batch = function(step, X, Y, batch_size) {
     list(
@@ -97,10 +107,9 @@ time = function(config) {
     )
   }
 
-  t0 = Sys.time()
   timings = list()
-  gc_times = c()
   for (epoch in seq(1, config$epochs)) {
+    t0 = Sys.time()
     for (step in seq_len(steps)) {
       opt$zero_grad()
       batch = get_batch(step, X, Y, config$batch_size)
@@ -109,14 +118,10 @@ time = function(config) {
       loss$backward()
       opt$step()
       net$parameters[[1]][1, 1]
-
-      tgc = Sys.time()
-      gc(verbose = FALSE)
-      gc_times = append(gc_times, as.numeric(difftime(Sys.time(), tgc, units = "secs")))
-
    }
-    timings = append(timings, list(as.numeric(difftime(Sys.time(), t0, units = "secs")) - sum(gc_times)))
-  }
+    
+  timings = append(timings, list(as.numeric(difftime(Sys.time(), t0, units = "secs"))))
+}
 
   list(
     timings = timings,
@@ -137,13 +142,13 @@ results = map(configs, function(config) {
 timings = rbindlist(map(results, function(x) as.data.table(x$timings)))
 print(timings)
 
-#losses = map_dbl(results, function(x) x$loss)
+losses = map_dbl(results, function(x) x$loss)
 
 #browser()
 
-#config_tbl = cbind(config_tbl, timings)
-#config_tbl$loss = losses
+config_tbl = cbind(config_tbl, timings)
+config_tbl$loss = losses
 
-#name = paste0("result", Sys.getenv("CUDA_VISIBLE_DEVICES"), ".csv")
+name = paste0("result", Sys.getenv("CUDA_VISIBLE_DEVICES"), ".csv")
 
-# write.csv(config_tbl, here("2024-10-07", "R", name))
+write.csv(config_tbl, here("2024-10-22", "R", name))
